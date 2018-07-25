@@ -1,0 +1,201 @@
+---
+title: "pp"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars, warning=FALSE}
+# HW 6(Data analysis)
+library(GGally)
+library(readr)
+library(dplyr)
+library(Hmisc)
+library(ggplot2)
+library(highcharter)
+library(car)
+dic_var = read_delim("/Users/parnianshahkar/Desktop/house/dictionnaire_variables.csv", delim = ";")
+dic_nvx = read_csv("/Users/parnianshahkar/Desktop/house/dictionnaire_niveaux.csv", col_names = c("variable", "label", "type")) %>% 
+  select(1:3)
+house = read_csv("/Users/parnianshahkar/Desktop/house/train.csv")
+# Question 1
+ggcorr(house, label = TRUE, label_alpha = TRUE, label_size = 3, label_color = "blue")
+
+select_if(house, is.numeric) -> num
+
+cor<-as.data.frame(cor(num, use = "complete.obs"))
+View(cor)
+res <- rcorr(as.matrix(num))
+View(res$P)
+cor %>% mutate(name = row.names(cor)) -> cor
+cor$name[rank(-cor$SalePrice) <= 11] -> MostRelated
+MostRelated
+####
+# Q2
+house[,MostRelated] -> M
+scatterplotMatrix(M, col)
+vif(lm(SalePrice ~  OverallQual + YearBuilt + YearRemodAdd + TotalBsmtSF + GrLivArea + FullBath + TotRmsAbvGrd + GarageCars + GarageArea, data = M))
+```
+
+A simple approach to identify collinearity among explanatory variables is the use of variance inflation factors (VIF). VIF calculations are straightforward and easily comprehensible; the higher the value, the higher the collinearity, here we can see that GarageCars and GarageArea and also GrLiveArea have the highest values, so they have the most collinearity with SalePrice.reversely, YearRemodAdd and TotalBsmtSF has the least colinearity with SalePrice.
+```{r a}
+####
+# Q3
+fit = lm(SalePrice ~ OverallQual + YearBuilt + YearRemodAdd + TotalBsmtSF + GrLivArea + FullBath + TotRmsAbvGrd + GarageCars + GarageArea, data = M) 
+summary(fit)
+
+####
+# Q4
+test = read.csv('Desktop/house/test.csv')
+test_complete = read.csv('Desktop/house/test_set_complete.csv')
+### determining feature indexes
+Most = intersect(MostRelated, colnames(test_complete))
+Most = c("Id",Most)
+Most = setdiff(Most, "SalePrice")
+###
+test_complete[, Most] -> t
+predict_price = predict(fit, t[2:10])
+
+test_complete %>% mutate(predict_price = predict_price) %>% arrange(predict_price) -> test_complete
+test_complete$rownumber = 1:nrow(test_complete)
+ggplot(test_complete, aes(x = rownumber)) + 
+  geom_line(aes(y = predict_price, colour = "predict_price")) + 
+  geom_line(aes(y = SalePrice, colour = "SalePrice"))
+```
+# As we can see our linear model predicts the prices well enough.
+```{r b}
+#####
+# Q5
+summary(fit)
+```
+R-squred = 0.7724, being closer to 1 means having a better model.Considering the value 0.7724 for R-squared, generally we have a good model.
+A model with zero predictors is called Intercept Only Model. F Test for overall significance compares an intercept only regression model with the current model. And then tries to comment on whether addition of these variables together is significant enough for them to be there or not.
+H0 in F-statistics is: our model does not differ much from the Intercept Only Model.(so that our predictors are trivial and R-squared is not reliable)
+but here we see that p-value: < 2.2e-16. so H0 is rejected and our model is different from an intercept only model, so we can not say our features are trivial, or not important enough for making our model.
+```
+```{r c}
+####
+# Q6
+```
+considering p-value: So, the variables which have small p-values, reject the hypothesis that "the mean of their coefficient(which is a random variable) is equal to zero" 
+or we can say that they reject the hypothesis "They are not effective features on the output variable", so we can consider them as effective variables.
+
+
+fit = lm(SalePrice ~ OverallQual + YearBuilt + YearRemodAdd + TotalBsmtSF + GrLivArea + FullBath + GarageCars, data = M) 
+summary(fit)
+
+We do not see much difference in the values of R-squared or p-value in F-statistic.As our degree of freedom has decreased for 2 units, F-statistic parameter has gotten bigger comparing to the previous state.
+
+```{r d}
+####
+# Q7
+# Independence test(X and residuals are uncorrelated).
+cor.test(M$OverallQual, fit$residuals)
+cor.test(M$YearBuilt, fit$residuals)
+cor.test(M$YearRemodAdd, fit$residuals)
+cor.test(M$TotalBsmtSF, fit$residuals)
+cor.test(M$GrLivArea, fit$residuals)
+cor.test(M$FullBath, fit$residuals)
+cor.test(M$TotRmsAbvGrd, fit$residuals)
+cor.test(M$GarageCars, fit$residuals)
+cor.test(M$GarageArea, fit$residuals)
+cor.test(M$GarageArea, fit$residuals)
+```
+Due to large p-values, null hypothesis that says correlation between our variables and noise is zero is not rejected.
+
+Constant variance test And normality test(The residuals should be normally distributed.)
+```{r e}
+par(mfrow=c(2,2))
+plot(fit)
+```
+From the first plot (top-left), as the fitted values along x increase, the residuals decrease and then increase. This pattern is indicated by the red line, which should be approximately flat if the disturbances are homoscedastic.So disturbances are not homoscedastic.
+The qqnorm() plot in top-right evaluates whether residuals are normally distributed or not.  If points lie exactly on the line, it is perfectly normal distribution. However, some deviation is to be expected, particularly near the ends,but the deviations should be small.
+Here we can generally accept the hypothesis that noise(residual) is normally distributed.
+```{r f}
+#####
+# Q8
+indexes <- sample(1:nrow(house), nrow(house)/5)
+
+teest<- house[indexes,]
+traain<- house[-indexes,]
+
+Most = c("Id",MostRelated)
+Most = setdiff(Most, "1stFlrSF")
+test8<-teest[,Most] 
+
+fit = lm(SalePrice ~ OverallQual + YearBuilt + YearRemodAdd + TotalBsmtSF + GrLivArea + FullBath + TotRmsAbvGrd + GarageCars + GarageArea, data = traain) 
+summary(fit)
+test8 %>% mutate(predict = predict(fit, test8[,2:10])) %>% arrange(predict)-> q8
+
+q8$rank = 1:nrow(q8)
+
+ggplot(data = q8, aes(x = rank)) + 
+  geom_line(aes(y = predict, color = "predict")) + 
+  geom_line(aes(y = SalePrice, color = "SalePrice"))
+# Error of Prediction 
+predict(fit, test8[,2:10], se.fit = TRUE)
+# Residual.scale 38735.5
+####
+# Q9
+```
+
+By plotting SalePrice vs. Most related features, we can figure out that Saleprice has an exponential relation with parameteres:OverallQual and YearBuilt and GrLivArea and TotalBsmtSF.
+So its better to make our linear model by taking their logarithms as our main features.
+A better model:
+```{r h}
+house %>% mutate(o1 =log(OverallQual)) %>% mutate(y1= log(YearBuilt)) %>% mutate(g1 = log(GrLivArea)) %>% mutate(t1 = log(TotalBsmtSF)) -> house1
+house1$g1 <- as.integer(house1$g1)
+house1$t1 <- as.integer(house1$t1)
+house1$o1 <- as.integer(house1$o1)
+house1$y1 <- as.integer(house1$y1)
+
+
+fit = lm(SalePrice ~ o1 + y1 + YearRemodAdd + t1 + g1 + FullBath + GarageCars , data = house1) 
+summary(fit)
+####
+# Q10
+test_data = read_csv("/Users/parnianshahkar/Desktop/house/test.csv")
+Most = c("Id",MostRelated)
+Most = setdiff(Most,"1stFlrSF")
+Most = setdiff(Most, "SalePrice")
+###
+test_data[, Most] -> t
+########## New Section
+t$TotalBsmtSF = log(t$TotalBsmtSF)
+t$GrLivArea = log(t$GrLivArea)
+t$OverallQual = log(t$OverallQual)
+t$YearBuilt = log(t$YearBuilt)
+
+colnames(t)[which(names(t) == "TotalBsmtSF")] <- "t1"
+colnames(t)[which(names(t) == "GrLivArea")] <- "g1"
+colnames(t)[which(names(t) == "OverallQual")] <- "o1"
+colnames(t)[which(names(t) == "YearBuilt")] <- "y1"
+
+
+t$g1 <- as.integer(t$g1)
+t$t1 <- as.integer(t$t1)
+t$o1 <- as.integer(t$o1)
+t$y1 <- as.integer(t$y1)
+
+###########
+predict_price = predict(fit, t[2:10], type = "response")
+t %>% mutate(SalePrice = predict_price) -> t1
+t1 %>% select(Id, SalePrice) -> p
+avg = mean(p$SalePrice, na.rm = T)
+p$SalePrice[is.na(p$SalePrice)] =mean(p$SalePrice, na.rm=TRUE)
+
+mean(p$SalePrice)
+
+write.csv(p,'pred.csv', row.names = FALSE)
+
+p
+
+```
+
+Rank in kaggle competition: 4379
+https://www.kaggle.com/c/house-prices-advanced-regression-techniques/leaderboard
+name: Parnian Shahkar
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code 

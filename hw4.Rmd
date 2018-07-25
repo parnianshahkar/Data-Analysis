@@ -1,0 +1,270 @@
+---
+title: "mark"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r cars, include=TRUE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(highcharter)
+library(readr)
+
+bsg = read_rds("/Users/parnianshahkar/desktop/bsg.rds")
+tims = read_rds("/Users/parnianshahkar/desktop/timss_2015.rds")
+# TWO
+bsg %>% select(id = idstud, first_mark = bsmmat01, second_mark = bsmmat02, third_mark = bsmmat03,fourth_mark = bsmmat04,fifth_mark = bsmmat05, mother_education = bsbg07a, father_education = bsbg07b) %>% mutate(parent_education = floor((father_education + mother_education)/2), Achievement = (first_mark + second_mark + third_mark + fourth_mark + fifth_mark)/5) -> TWO
+TWO %>% aov(Achievement ~ parent_education , data = .) -> fit
+fit
+summary.aov(fit)
+# So due to the small value PR,the hypothesis that student's achievement is not correlated to parent's education is rejected.
+cor(TWO$Achievement, TWO$parent_education, use= "complete" )
+# So there is 0.18 correlation between the parameters.
+coef = coef(lm(Achievement ~ parent_education, data = TWO))
+TWO$parent_education = as.integer(TWO$parent_education)
+TWO$Achievement = as.numeric(TWO$Achievement)
+TWO %>% group_by(parent_education) %>% summarise(stu_achieve = mean(Achievement)) -> kolah
+p = ggplot(aes(x = parent_education, y = stu_achieve), data = kolah) 
+p + geom_point() + scale_y_continuous(limits = c(0, 900)) + geom_smooth(method="lm")
+
+kolah %>% arrange(parent_education) %>% hchart(type ="column", hcaes(x = parent_education, y = stu_achieve), name = "2")
+             
+####
+# THREE
+bsg %>% select(id = idstud, first_mark = bsmmat01, second_mark = bsmmat02, third_mark = bsmmat03,fourth_mark = bsmmat04,fifth_mark = bsmmat05, a = bsbg06a, b = bsbg06b, c = bsbg06c, d = bsbg06d, e = bsbg06e, f = bsbg06f, g = bsbg06g, h = bsbg06h,i = bsbg06i, j = bsbg06j, k = bsbg06k) -> THREE
+THREE$a = ifelse(THREE$a == 2, 0, 1)
+THREE$b = ifelse(THREE$b == 2, 0, 1)
+THREE$c = ifelse(THREE$c == 2, 0, 1)
+THREE$d = ifelse(THREE$d == 2, 0, 1)
+THREE$e = ifelse(THREE$e == 2, 0, 1)
+THREE$f = ifelse(THREE$f == 2, 0, 1)
+THREE$g = ifelse(THREE$g == 2, 0, 1)
+THREE$h = ifelse(THREE$h == 2, 0, 1)
+THREE$i = ifelse(THREE$i == 2, 0, 1)
+THREE$j = ifelse(THREE$j == 2, 0, 1)
+THREE$k = ifelse(THREE$k == 2, 0, 1)
+
+THREE %>% mutate(Achievement = (first_mark + second_mark + third_mark+fourth_mark+fifth_mark)/5, luxury = a+ b+ c+ d+ e+ f+ g+ h+ i + j + k ) -> kolah
+kolah %>% aov(Achievement~luxury, data = .) -> fit
+summary.aov(fit)
+# So we find out that p_value is too small so the hypothesis that students achievement is not related to the welfare is rejected.
+
+kolah %>% group_by(luxury) %>% summarise(achieve = mean(Achievement)) -> kolah
+p = ggplot(data = kolah, aes(x = luxury, y = achieve)) 
+p + geom_line() + geom_point()
+cor(kolah$achieve, kolah$luxury, use = "complete")
+# So the welfare is HIGHLY correlated to the achievement of the students!
+
+kolah %>% hchart(type = "line", hcaes(x = luxury, y = achieve), name = "achievement_welfare")
+
+###
+# FOUR
+bcg = read_rds("/Users/parnianshahkar/desktop/bcg.rds")
+bcg %>% select(idcntry, idschool, a = bcbg15a, b = bcbg15b, c = bcbg15c, d = bcbg15d, e = bcbg15e, f = bcbg15f, g = bcbg15g, h = bcbg15h, i = bcbg15i, j =bcbg15j, k = bcbg15k) -> FOURa
+bsg %>% select(idcntry, idschool, idstud, bsmmat01, bsmmat02, bsmmat03, bsmmat04,bsmmat05) %>%  mutate(mark = (bsmmat01 + bsmmat02 + bsmmat03+bsmmat04+bsmmat05)/5) -> u
+u %>% group_by(idcntry, idschool) %>% summarise(mark = mean(mark, na.rm = T)) -> FOURb
+
+FOUR <- merge(FOURa, FOURb)
+FOUR %>% mutate(nonpeace = a+b+c+d+e+f+g+h+i+j+k) -> FOUR
+FOUR %>% aov(mark~nonpeace, data = .) -> fit
+summary.aov(fit)
+# So the hypothesis that the peace in school has no effect on students achievement in that school is rejected due to small p_value.
+coef = coef(lm(mark ~ nonpeace, data = FOUR))
+FOUR %>% ggplot(aes(x = nonpeace, y = mark)) + geom_point(color = "pink", alpha = 0.4) + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+FOUR %>% hchart(type = "scatter", hcaes(x = nonpeace, y = mark), name = "mark_nonpeace_state")
+
+# now in order to have a better concept we show the results in a different way
+FOUR1 = FOUR %>% group_by(nonpeace) %>% summarise(mark = mean(mark, na.rm = T)) 
+coef = coef(lm(mark ~ nonpeace, data = FOUR1))
+FOUR1 %>% ggplot(aes(x = nonpeace, y = mark)) + geom_point(color = "pink", alpha = 0.9) + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+FOUR1 %>% hchart(type = "scatter", hcaes(x = nonpeace, y = mark), name = "mark_nonpeace_state")
+cor(FOUR1$mark, FOUR1$nonpeace, use = "complete")
+# (the correlation is negative cause non_peace state in schools has a reverse effect on student achievement in that school as we expect!)
+
+###
+# FIVE 
+btm = read_rds("/Users/parnianshahkar/desktop/btm.rds")
+bts = read_rds("/Users/parnianshahkar/desktop/bts.rds")
+bsa = read_rds("/Users/parnianshahkar/desktop/bsa.rds")
+
+btm %>% select(idcntry, idschool, idteach, experience = btbg01, edu = btbg04) -> Fm
+bts %>% select(idcntry, idschool, idteach, experience = btbg01, edu = btbg04) -> Fs 
+
+Five = rbind(Fm, Fs)
+
+Five %>% mutate(teacher_quality = 3*edu + experience) -> Five
+Five %>% arrange(idcntry,idschool, idteach) -> Five
+Five %>% group_by(idcntry, idschool) %>% summarise(teacher_quality = mean(teacher_quality, na.rm = T)) -> f1
+
+Five_f = merge(f1, FOURb)
+Five_f %>% aov(mark~teacher_quality, data = .) -> fit
+summary.aov(fit)
+# Due to  the small amount of p-value the hypothesis that the teachere quality does not effect students mark is rejected
+coef = coef(lm(mark ~ teacher_quality , data = Five_f))
+Five_f %>% ggplot(aes(x = teacher_quality, y = mark)) + geom_point(color = "pink") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+Five_f %>% hchart(type = "scatter",hcaes(x = teacher_quality, y = mark), name = "mark-teacher quality") 
+
+# For showing results more vividly:
+Five_f %>% group_by(teacher_quality) %>% summarise(mark = mean(mark , na.rm = T))-> F1
+coef = coef(lm(mark ~ teacher_quality , data = F1))
+F1 %>% ggplot(aes(x = teacher_quality, y = mark)) + geom_point(color = "pink") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+F1 %>% hchart(type = "scatter",hcaes(x = teacher_quality, y = mark), name = "mark-teacher quality") 
+
+cor(F1$mark, F1$teacher_quality, use = "complete")
+
+###
+# Six
+tims %>% filter(content_domain == "Geometry") -> geometry
+geometry %>% select(female = correct_ratio_per_question_female,
+                    male = correct_ratio_per_question_male) %>% 
+  tidyr::gather("female","male", key = "gender",value = "score") -> dscore
+t.test(score~gender, data = dscore)
+# Due to the large amount of p-value, we can not reject the hypothesis that there is a meaningful difference between boys and girls in sollving geometry questions
+dscore %>% ggplot(aes(x = score, fill = gender)) + geom_density(alpha = 0.5)
+dscore %>% group_by(gender) %>% summarise(mean = mean(score, na.rm = T)) %>% ggplot(aes(x = gender, y = mean), color = "green") + geom_bar(stat = "identity", color = "Green")
+
+dscore %>% group_by(gender) %>% summarise(mean = mean(score, na.rm = T)) %>% hchart(type = "column",hcaes(x = gender, y = mean))
+
+###
+# Seven
+bsg %>% select(id = idstud, first_mark = bsmmat01, second_mark = bsmmat02, third_mark = bsmmat03,fourth_mark = bsmmat04,fifth_mark = bsmmat05, notbreakfast = bsbg12) %>% mutate(mark = (third_mark + second_mark + first_mark+fifth_mark+ fourth_mark)/5 ) ->seven
+seven %>% aov(mark~notbreakfast, data = .) ->fit
+summary.aov(fit)
+# So the hypothesis that nutrition has nothing to do whith students result is rejected
+seven %>% group_by(notbreakfast) %>% summarise(mark = mean(mark, na.rm = T)) -> s
+
+s$notbreakfast =as.numeric(s$notbreakfast)
+s$mark =as.numeric(s$mark)
+
+seven$notbreakfast =as.numeric(seven$notbreakfast)
+seven$mark =as.numeric(seven$mark)
+
+coef = coef(lm(mark ~ notbreakfast , data = seven))
+seven %>% ggplot(aes(x = notbreakfast, y = mark)) + geom_point(color = "green") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+# for showing the data more vididly(by talking about means of each group)
+coef = coef(lm(mark ~ notbreakfast , data = s))
+s %>% ggplot(aes(x = notbreakfast, y = mark)) + geom_bar(stat = "identity", color = "green") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+s %>% hchart(type = "column", hcaes(x = notbreakfast, y = mark))
+
+cor(s$mark, -s$notbreakfast, use = "complete")
+
+###
+# ten
+tims %>% filter(Country == "Iran, Islamic Rep. of") -> iran
+iran %>% filter(cognitive_domain == "Reasoning" | cognitive_domain == "Applying") -> iran
+iran %>% t.test(correct_ratio_per_question~cognitive_domain, data = .) -> fit
+fit
+## Due to small p value the hypothesis that correct ratio per question is independant from cognitive domain is rejected
+iran %>% group_by(cognitive_domain) %>% summarise(correct = mean(correct_ratio_per_question, na.rm = T))->a
+a %>% ggplot(aes(x = cognitive_domain, y = correct)) + geom_bar(stat = "identity", color = "yellow", alpha = 1)
+a %>% hchart(type ="column" ,hcaes(x = cognitive_domain, y = correct), name = "correct ratio per question")
+# So iranian students are better in applying than in reasoning
+
+
+##############################
+# 3 cool statements:
+# First : The result of annoying students on their results:
+
+bsg %>% select(idcntry,idschool,idstud, bsbg16a,bsbg16b,bsbg16c,bsbg16d,bsbg16e,bsbg16f,bsbg16g,bsbg16h,bsbg16i,first_mark = bsmmat01, second_mark = bsmmat02, third_mark = bsmmat03,fourth_mark = bsmmat04,fifth_mark = bsmmat05 ) %>% mutate(notannoying = bsbg16a+bsbg16b+bsbg16c+bsbg16d+bsbg16e+bsbg16f+bsbg16g+bsbg16h+bsbg16i,mark = (third_mark + second_mark + first_mark+fourth_mark+fifth_mark )/5 ) -> cool1
+cool1 %>% group_by(notannoying) %>% summarise(mark = mean(mark, na.rm = T)) -> c1
+
+cool1 %>% aov(mark~notannoying, data = .) -> fit
+summary.aov(fit)
+## Due to small p value the hypothesis that annoying a child in school has no effect on his mark is rejected
+
+coef = coef(lm(mark ~ notannoying , data = c1))
+c1$notannoying = as.numeric(c1$notannoying)
+c1$mark = as.numeric(c1$mark)
+
+c1 %>% ggplot(aes(x = notannoying, y = mark)) + geom_point(color = "red") +geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+c1 %>% hchart(type = "scatter", hcaes(x = notannoying, y = mark))
+cor(c1$mark, c1$notannoying, use = "complete")
+
+# So as we see the results there is a high correlation between childerns annoying in school and the marks they get!
+
+
+####
+# Second: less hours of going to school(per week) leads to better results!
+bcg %>% select(idcntry, idschool, days=bcbg07a, minutes = bcbg07b) %>% mutate(minutesPerWeek = days*minutes) ->t
+cool2 = merge(FOURb, t)
+cool2 %>% aov(mark~minutesPerWeek, data = .) -> fit
+summary.aov(fit)
+# Due to small amount of p-value the hypothesis that the time of being at school has no effect on student's results is rejected
+
+cool2 %>% group_by(minutesPerWeek) %>% summarise(mark = mean(mark , na.rm = T)) -> t
+coef = coef(lm(mark ~ minutesPerWeek  , data = t))
+t %>% ggplot(aes(x = minutesPerWeek, y = mark)) + geom_point(color = "purple") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+t %>% hchart(type = "scatter", hcaes(x = minutesPerWeek, y = mark))
+cor(t$mark, t$minutesPerWeek, use = "complete")
+
+# So as we see in the diagram and also by checking correlation number(-0.15), we can find out that school hours has reverse effect on students results!
+
+####
+# Third
+# 3rd Cool statement: Math teacher's effort in professional development has effect on students eager in math.
+btm %>% select(idcntry, idschool, idteach, a =btbm24a, b =btbm24b, c =btbm24c, d =btbm24d,e =btbm24e, f =btbm24f,  g =btbm24g ) -> Fm
+Fm$a = ifelse(Fm$a == 2, 0, 1)
+Fm$b = ifelse(Fm$b == 2, 0, 1)
+Fm$c = ifelse(Fm$c == 2, 0, 1)
+Fm$d = ifelse(Fm$d == 2, 0, 1)
+Fm$e = ifelse(Fm$e == 2, 0, 1)
+Fm$f = ifelse(Fm$f == 2, 0, 1)
+Fm$g = ifelse(Fm$g == 2, 0, 1)
+
+Fm %>% mutate(pr_dev = a+b+c+d+e+f+g) -> Fm
+Fm %>% group_by(idcntry, idschool) %>% summarise(pr_dev = mean(pr_dev, na.rm = T)) -> c1
+bsg %>% select(idcntry, idschool, idstud, hate_math_factor = bsbm17a) %>% mutate(love_math_factor = 1/hate_math_factor) -> c2
+c2 %>% group_by(idcntry, idschool) %>% summarise(love_math_factor = mean(love_math_factor, na.rm = T))-> c2
+
+C = merge(c1, c2)
+C %>% aov(love_math_factor~pr_dev, data = .)->fit
+summary.aov(fit)
+# as p-value is 0.02, the hypothesis that teacher's professional development has no effect on students eager in math is rejected
+
+C %>% group_by(pr_dev) %>% summarise(love_math_factor = mean(love_math_factor, na.rm = T)) -> c1
+coef = coef(lm( love_math_factor~ pr_dev  , data = c1))
+c1 %>% ggplot(aes(x = pr_dev, y = love_math_factor)) + geom_point(color = "purple") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+c1 %>% hchart(type = "scatter", hcaes(x = pr_dev, y = love_math_factor))
+cor(c1$pr_dev, c1$love_math_factor, use = "complete")
+
+###
+# Fourth:
+# Expectation of students from their highest level of education is highly affected by their parents highest level of education
+bsg %>% select(mother_edu = bsbg07a, father_edu = bsbg07b, future_edu = bsbg08) %>% filter(mother_edu != 8) %>% filter(father_edu!= 8) %>% 
+  mutate(parent_edu = (mother_edu+father_edu)/2) -> cool4
+
+cool4 %>% aov(future_edu~parent_edu, data = .) -> fit
+summary.aov(fit)
+## so the hypothesis that parents education level has no effect on students expect of his/her education level is rejected
+
+cool4 %>% group_by(parent_edu) %>% summarise(future_edu = mean(future_edu, na.rm = T)) -> c1
+coef = coef(lm( future_edu~ parent_edu  , data = c1))
+c1$parent_edu = as.numeric(c1$parent_edu)
+c1$future_edu = as.numeric(c1$future_edu)
+c1 %>% ggplot(aes(x = parent_edu, y = future_edu)) + geom_point(color = "purple") + geom_abline(intercept = coef[1], slope = coef[2], color = "blue")
+c1 %>% hchart(type = "scatter", hcaes(x = parent_edu, y = future_edu))
+cor(c1$parent_edu, c1$future_edu, use = "complete")
+
+
+
+
+
+
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

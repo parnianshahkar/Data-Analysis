@@ -1,0 +1,97 @@
+---
+title: "hw5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+#Q1
+income = c(102, 300, 102, 100, 205, 105, 71 , 92)
+prob = c(0.125,0.125,0.125,0.125,0.125,0.125,0.125,0.125)
+chisq.test(income, p = prob)
+```
+As the p-value is very small, the null hypothesis(all branches are operating the same) is rejected.
+```{r a}
+#Q2
+mydata = data.frame(score = c(50, 50, 60, 70, 75, 80, 90, 85,55, 75, 80, 90, 105, 65),
+                    treatment = factor(c(rep("Classical", 8), rep("Modern", 6))))
+library(coin)
+coin::oneway_test(score~treatment, data=mydata, distribution="exact")
+```
+As the p-value is 0.3, we can not reject null hypothesis(operation of both classical and Modern stores are the same)
+```{r b}
+#Q3
+before = c(509, 517, 502, 629, 830, 911, 847, 803, 727, 853, 757, 730, 774, 718, 904)
+after = c(517, 508, 523, 730, 821, 940, 818, 821, 842, 842, 709, 688, 787, 780, 901)
+mydata = data.frame(score = c(before, after),
+                    treatment = factor(c(rep("before", 15), rep("after", 15))))
+wilcox.test(score~treatment, data = mydata)
+```
+As the p-value is 0.8, we can not reject null hypothesis(Advertisement has not increased the market sale of the branches)
+```{r c}
+#Q4
+White = c(510, 720, 930, 754, 105)
+Blue = c(925, 735, 753, 685)
+Red = c(730, 745, 875, 610)
+mydata = data.frame(score = c(White, Blue),
+                    treatment = factor(c(rep("White", 5), rep("Blue", 4))))
+
+wilcox.test(score~treatment, data = mydata)
+```
+Due to the large p value, we can not reject null hypothesis(two samples "White and Blue" come from the same population)
+```{r d}
+mydata = data.frame(score = c(White, Red),
+                    treatment = factor(c(rep("White", 5), rep("Red", 4))))
+
+wilcox.test(score~treatment, data = mydata)
+```
+Due to the large p value, we can not reject null hypothesis(two samples "White and Red" come from the same population)
+```{r e}
+mydata = data.frame(score = c(Blue, Red),
+                    treatment = factor(c(rep("Blue", 4), rep("Red", 4))))
+
+wilcox.test(score~treatment, data = mydata)
+```
+Due to the large p value, we can not reject null hypothesis(two samples "Blue and Red" come from the same population)
+
+So finally we can not say that any special color has any meaningful difference in its sale.
+```{r f}
+#Q5
+tv = read.csv("/Users/parnianshahkar/Desktop/tv.csv")
+library(dplyr)
+tv = data.matrix(tv)
+friedman.test(tv)
+```
+Due to the large p value, we can not reject null hypothesis(advertisement does not effect on peoples satisfaction from a product)
+```{r g}
+#Q6
+always = c(151, 802, 753)
+sometimes = c(252, 603, 55)
+never = c(603, 405, 408)
+mat = matrix(c(always,sometimes, never), nrow = 3 )
+chisq.test(mat)
+
+```
+Due to the small, we can reject null hypothesis(city size has no effect on usage of a product), so city has effect on usage of a product.
+```{r h}
+#Q7
+cons = read.csv("/Users/parnianshahkar/Desktop/consumption.csv")
+df = data.frame(score = c(cons[,1], cons[,2]),product =  c(rep("A", 100), rep("B", 100)))
+wilcox.test(score~product, data = df)
+```
+Due to the small, we can reject null hypothesis, so there is a meaningful relationship between selling rate of these two products.
+```{r j}
+#Q8
+Male = c(301, 353, 558)
+Female = c(502, 155, 153)
+mat = matrix(c(Male, Female), nrow = 2, byrow = TRUE)
+print(chisq.test(mat))
+```
+Due to the small, we can reject null hypothesis,So Gender has a meaningful effect on the reason of buying stuff.
+
+
+

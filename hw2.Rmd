@@ -1,0 +1,140 @@
+---
+title: "hw2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# HW2
+library(readr)
+library(ggplot2)
+mobile = read_csv("downloads/mobile_data.csv")
+# Q1
+# This company has produced the most phones
+a = c(rev(tail(names(sort(table(mobile$company))), 1)))
+
+mobile = read_csv("downloads/mobile_data.csv")
+library(dplyr)
+mobile %>% group_by(company) %>% 
+  summarise(counter = n()) %>% arrange(desc(counter)) -> stat
+library(ggplot2)
+ggplot(data = stat[1:20, ], aes(x = company, y = counter)) + geom_bar(stat = "identity") + coord_flip()
+#Q2 (point by point)
+library(ggplot2)
+ggplot(data = mobile, aes(x = year, y = dim_breadth)) + geom_point(alpha = 0.6, colour = "pink") + geom_smooth(method = "lm")
+ggplot(data = mobile, aes(x = year, y = dim_length)) + geom_point(alpha = 0.6, colour = "pink")  + geom_smooth(method = "lm")
+ggplot(data = mobile, aes(x = year, y = dim_thickness)) + geom_point(alpha = 0.6, colour = "pink")  + geom_smooth(method = "lm")
+ggplot(data = mobile, aes(x = year, y = cam_px)) + geom_point(alpha = 0.6, colour = "pink")  + geom_smooth(method = "lm")
+
+#(addind lines considering average of each year)
+mobile %>% group_by(year) %>% summarise(breadth = mean(dim_breadth, na.rm = T), length = mean(dim_length, na.rm = T), thickness = mean(dim_thickness, na.rm = T), cam = mean(cam_px, na.rm = T)) -> q2
+ggplot(data = q2, aes(x = year, y = breadth)) + geom_point(alpha = 1, colour = "purple") + geom_line(colour = "blue") 
+ggplot(data = q2, aes(x = year, y = length)) + geom_point(alpha = 1, colour = "purple")  + geom_line(colour = "blue")
+ggplot(data = q2, aes(x = year, y = thickness)) + geom_point(alpha = 1, colour = "purple")  + geom_line(colour = "blue")
+ggplot(data = q2, aes(x = year, y = cam)) + geom_point(alpha = 1, colour = "purple")  + geom_line(colour = "blue")
+
+# Q3
+mobile %>%  group_by(sim_no, LTE) %>% summarise(price = mean(price, na.rm = T)) -> q3ltedarad
+ggplot(data = q3ltedarad, aes(x = sim_no, y = price)) + geom_bar(stat = "identity") + facet_wrap(~LTE)
+
+# Q4
+mobile %>% filter(year == 2017) -> q4
+p = ggplot(q4, aes(audio_jack,dim_thickness))
+p + geom_boxplot()
+
+# Q5
+mobile %>% 
+  mutate(PPI = sqrt((mobile$px_row^2 + mobile$px_col^2 ))/mobile$display_size) ->q5
+p = ggplot(data = q5, aes(x = PPI))
+p + geom_histogram(binwidth = 20, colour = "green", fill= "yellow", alpha = 0.5)
+
+q5 %>% group_by(year) %>% summarise(ppi = mean(PPI, na.rm = T)) ->q55
+ggplot(data = q55, aes(x = year, y = ppi)) + geom_point()
+
+ppi_max = q5$device[which.max(q5$PPI)]
+
+# Q6
+mobile %>% filter(company == "Nokia") -> nokia_products
+nokia_products %>% mutate(gooshkoob = dim_thickness/(dim_length * dim_breadth))-> q6
+a = mean(q6$gooshkoob, na.rm = T)
+q6 %>% filter(gooshkoob > a) -> final_gooshkoob_list
+final_gooshkoob_list %>% arrange(desc(gooshkoob)) ->a
+print(a$device[1:10]) 
+ggplot(data = a[1:10, ], aes(x = device, y = gooshkoob)) + geom_bar(stat = "identity")
+
+# Q7
+mobile %>% mutate(chegali = 1000*weight/(dim_length * dim_breadth * dim_thickness))-> q7
+q7 %>% filter(chegali < 1) -> q77
+ggplot(data = q77, aes(x = device, y = chegali)) + geom_bar(stat = "identity") + coord_flip()
+
+# Q8
+ggplot(data = mobile, aes(x = battery_mah, y = weight)) + geom_point()
+correlation = cor(mobile$battery_mah, mobile$weight ,use = "na.or.complete", method = "pearson")
+
+#Q9
+mobile %>% 
+  filter(company == "Samsung") %>% arrange(desc(price)) -> test
+  
+mobile %>% 
+  filter(company == "Samsung") %>% group_by(year) %>% summarise(name = device[price == max(price, na.rm = T)][1]) -> teest
+
+teest[8, 2] = "E630"
+teest[10, 2] = "P930"
+teest[11, 2] = "Serenata"
+teest[14, 2] = "16500U Galaxy"
+teest[15, 2] = "P7500 Galaxytab 10.1"
+teest[18, 2] = "Galaxy note pro 12.2 LTE"
+
+mobile %>% 
+  filter(company == "Samsung") %>% 
+  group_by(year) %>% 
+  summarise(max_pr = max(price, na.rm = T)) -> q9
+q9 %>% mutate(name = teest$name) -> q99
+
+ggplot(data = q99, aes(x = year, y = max_pr, label = name)) + geom_histogram(stat = "identity") + geom_text(na.rm = T) + geom_label()
+
+# Q10
+```
+1) average price of specific brands through years:
+ It is interesting to compare the average prices of popular brands through years! as seen in the diagram, apple is always the most expensive product!
+```{r ca}
+###1) average price of specific brands through years:
+# It is interesting to compare the average prices of popular brands through years! as seen in the diagram, apple is always the most expensive product! 
+mobile %>% filter(company == "Apple") %>% group_by(year) %>% summarise(average = mean(price, na.rm = T), company = "Apple") -> Apple_products
+mobile %>% filter(company == "Samsung") %>% group_by(year) %>% summarise(average = mean(price, na.rm = T), company = "Samsung") -> Samsung_products
+mobile %>% filter(company == "Nokia") %>% group_by(year) %>% summarise(average = mean(price, na.rm = T), company = "Nokia") -> Nokia_products
+imp = rbind(Apple_products, Samsung_products, Nokia_products)
+
+ggplot(data = imp, aes(x = year, y = average)) + geom_bar(aes(fill = company), stat = "identity", position = "dodge")
+```
+2) Mean of camera pixel vs. display size through years
+It's interestig to see how display size and camera pixel correlate each other, and how do they change through years!
+```{r car}
+###2) Mean of camera pixel vs. display size through years
+# It's interestig to see how disolay size and camera pixel correlate each other, and how do they change through years!
+mobile %>% group_by(year) %>% summarise(cam_p = mean(cam_px, na.rm = T), disp = mean(display_size, na.rm = T)) -> q10_2
+ggplot(data = q10_2, aes(x = cam_p, y = disp, color = year)) + geom_line(stat = "identity", size = 3)
+```
+3) With a budget between 200-300, which mobile is the best to buy for your grandma's birthday?
+Well with this budget you have to consider the display size so that your grand ma would be able to work with it perfectly!
+So you'll need a list which recommends you the best 20 devices.(arranged by their display size).
+```{r a}
+###3) With a budget between 200-300, which mobile is the best to buy for your grandma's birthday?
+# Well with this budget you have to consider the display size so that your grand ma would be able to work with it perfectly!
+# So you'll need a list which recommends you the best 20 devices.(arranged by their display size).
+mobile %>% filter(price > 200 & price< 300) %>% arrange(desc(display_size)) -> q10_3
+qq = q10_3[1:20, ]
+ggplot(data = qq , aes(x = device, y = display_size, label = price, color = "purple")) + geom_bar(stat = "identity") + geom_text(na.rm = T) + geom_label() + coord_flip()
+
+
+```
+
