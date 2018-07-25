@@ -1,0 +1,288 @@
+---
+title: "hw9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+# Homework 9
+library(readr)
+library(dplyr)
+library(stringr)
+setwd("/Users/parnianshahkar/Downloads")
+indexes = read_csv("Data/indexes.csv")
+constituents = read_csv("Data/constituents.csv")
+places = read.csv("Data/places.txt", sep="", stringsAsFactors=FALSE)
+A = read_csv("Data/stock_dfs/A.csv")
+AAPL = read_csv("Data/stock_dfs/AAPL.csv")
+setwd("/Users/parnianshahkar/Downloads/Data/stock_dfs")
+name = list.files(path = ".", pattern = ".csv", full.names = TRUE)
+companies = do.call(rbind, lapply(name, function(x) read.csv(file=x) %>% mutate(company = x)))
+companies$company = str_sub(companies$company, 3, -5)
+companies$company = paste(" ", companies$company)
+companies$company = paste(companies$company, " ")
+companies %>% mutate(year = str_sub(companies$Date, 1 ,4),
+                     month =str_sub(companies$Date, 6 ,7),
+                     day = str_sub(companies$Date, 9,10),
+                     average = (Open+Close+Low+High)/4 ) -> companies
+all_years = companies$year %>% unique()
+all_companies = companies$company %>% unique()
+company_mat = matrix(, nrow = length(all_companies)*length(all_years), ncol = 3, dimnames  = list(NULL,c("company", "year", "benefit")))
+###### MAX benefit along 1 year.
+companies$year = as.numeric(companies$year)
+companies %>% mutate(flag = abs(lag(year) - year) + abs(lead(year) - year) ) -> companies
+companies$flag[1] = 1
+companies$flag = as.numeric(companies$flag)
+test = NULL
+companies %>%
+  filter(flag != 0) %>% 
+  mutate(BenefitOfTheYear = (lead(average) - average)/average) -> test
+toDelete <- seq(1, nrow(test), 2)
+testt = test[toDelete, ]
+testt %>% group_by(company) %>% summarise(max_benefit = max(BenefitOfTheYear)) -> table1
+colnames(table1) = c("Symbol", "max_1year_benefit")
+
+table1$Symbol = table1$Symbol %>% str_replace_all(" ", "")
+test1 = merge(table1, constituents)
+# This company has had the maximum benefit along a year during all previous years.
+name = test1$Name[which.max(table1$max_benefit)]
+###### MAX benefit along 2 years
+test %>% mutate(BenefitOfTwoYears = (lead(lead(lead(average)))- average)/average ) -> test # calculating the 
+toDelete <- seq(1, nrow(test), 2)
+testt = test[toDelete, ] # Deleting 12th months
+testt %>% filter(lead(year) > year) -> testt 
+testt %>% group_by(company) %>% summarise(max_benefit = max(BenefitOfTwoYears)) -> table2
+colnames(table2) = c("Symbol", "max_2year_benefit")
+table2$Symbol = table2$Symbol %>% str_replace_all(" ", "")
+test2 = merge(table2, constituents)
+# This company has had the maximum benefit along 2 years, during all previous years.
+name = test2$Name[which.max(table2$max_2year_benefit)]
+
+###### MAX benefit along 5 years
+test %>% mutate(BenefitOfFiveYears = (lead(lead(lead(lead(lead(lead(lead(lead(lead(average)))))))))- average)/average ) -> test # calculating the 
+toDelete <- seq(1, nrow(test), 2)
+testt = test[toDelete, ] # Deleting 12th months
+
+testt %>% filter(lead(lead(lead(lead(year)))) > year) -> testt 
+testt %>% group_by(company) %>% summarise(max_benefit = max(BenefitOfFiveYears)) -> table3
+colnames(table3) = c("Symbol", "max_5year_benefit")
+table3$Symbol = table3$Symbol %>% str_replace_all(" ", "")
+test3 = merge(table3, constituents)
+# This company has had the maximum benefit along 2 years, during all previous years.
+name = test3$Name[which.max(table3$max_5year_benefit)]
+
+###### For each sector of constituents
+TABLE = merge(table1, table2)
+TABLE = merge(TABLE, table3)
+TABLE = merge(TABLE, constituents)
+TABLE %>% group_by(Sector) %>% summarise(OneYearBenefit = sum(max_1year_benefit), TwoYearBenefit = sum(max_2year_benefit), FiveYearBenefit = sum(max_5year_benefit)) -> Sectors
+Sectors$Sector[which.max(Sectors$OneYearBenefit)]
+# So Health care sector has had the most beneficial year along these years.
+
+Sectors$Sector[which.max(Sectors$TwoYearBenefit)]
+# So Consumer Discretionary sector has had the most beneficial 2years along these years.
+
+
+Sectors$Sector[which.max(Sectors$FiveYearBenefit)]
+# So Consumer Discretionary sector has had the most beneficial 5years along these years.
+
+#######...........................................................
+library(ggplot2)
+N1 = table1 %>% arrange(max_1year_benefit) 
+N1 = top_n(table1, 10, max_1year_benefit) %>% select(Symbol) 
+# Oneyear  benefit of all ten most beneficial companies
+test$company = test$company %>% str_replace_all(" ", "")
+t = test %>% filter(company %in% N1$Symbol)
+ggplot(data = t , aes(x = year, y = BenefitOfTheYear, col = company)) + geom_line()
+TABLE %>% arrange(max_1year_benefit) %>% top_n(.,10,Name) -> k
+ggplot(data = k, aes(x = Name, y = max_1year_benefit)) + geom_bar(stat = "identity") 
+
+TABLE %>% arrange(max_2year_benefit) %>% top_n(.,10,Name) -> k
+ggplot(data = k, aes(x = Name, y = max_2year_benefit)) + geom_bar(stat = "identity") 
+
+TABLE %>% arrange(max_5year_benefit) %>% top_n(.,10,Name) -> k
+ggplot(data = k, aes(x = Name, y = max_5year_benefit)) + geom_bar(stat = "identity") 
+
+ggplot(data = Sectors, aes(x = Sector, y = OneYearBenefit))  + geom_bar(stat = "identity") 
+ggplot(data = Sectors, aes(x = Sector, y = OneYearBenefit))  + geom_bar(stat = "identity") 
+ggplot(data = Sectors, aes(x = Sector, y = OneYearBenefit))  + geom_bar(stat = "identity") 
+
+####.............................................................
+
+# Q2
+companies$day = as.numeric(companies$day)
+companies %>% filter(day == 13) -> thirteenday
+companies %>% filter(day != 13) -> notthirteenday
+# Now we want to see if there is any meaningful difference between the price of stock in thirteenth days and other days or not.
+t.test(thirteenday$average ,notthirteenday$average , alt = "greater") 
+# So Due to large value of p, we can not reject the null hypothesis which claims that average stock price is similar both in 13th days of the month and other days.
+
+# I can recommend another way for testing this:
+companies %>% mutate(thirt = ifelse(day == 13, (average - lead(average) + average - lag(average)), 0)) -> companies
+companies %>% filter(day == 13) %>% select(thirt) -> o
+t.test(o$thirt, mu = 0)
+# So Due to large value of p, we can not reject the null hypothesis which claims that (2*average stock price(day 13) - verage stock price(day 12)-verage stock price(day 14)) is a random variable with zero mean , so the stock price in 13th days are not different from other days.
+
+## Q3
+companies %>% group_by(Date) %>% summarise(total_volume = sum(Volume)) -> s
+s$Date[which.max(s$total_volume)]
+# This date is : 2008/10/10 due to Global financial crisis in October 2008 ,lots of people started to sell their stock and lots of others started to buy them, so at that day has, the largest amount of stock had been sold.
+
+## Q4
+companies$company = companies$company %>% str_replace_all(" ", "")
+companies %>% filter(company == "AAPL") -> apple
+apple <- apple %>% mutate(rownumber = row_number())
+apple$day = as.numeric(apple$day)
+apple$Open = as.numeric(apple$Open)
+# Prediction System:
+predictions = NULL
+mse = vector()
+for(k in 6:6){
+  for(rownumber in apple$rownumber){
+    open_pred = ifelse(rownumber > k ,
+                       predict(lm(Open ~ day, data = apple[(rownumber-k):(rownumber-1),]), newdata =  apple[rownumber,]),
+                       NA) 
+    predictions = append(predictions , open_pred)
+  }
+  mse[k] =  sum((predictions - apple$Open)^2, na.rm = T)
+  if(k == 6) accuracy = cor(predictions, apple$Open, use = "complete.obs")
+  predictions = NULL
+  
+}
+minimum_value_of_mse = mse[which.min(mse)] # minimum MSE : 26787
+# Best K with minimum MSE :
+best_k = which.min(mse)
+
+#A simple correlation between the actuals and predicted values can be used as a form of accuracy measure. A higher correlation accuracy implies that the actuals and predicted values have similar directional movement, i.e. when the actuals values increase the predicteds also increase and viceversa.
+accuracy
+# As we can see we have an accuracy of 0.996 here.
+
+## Q5
+library('reshape2')
+library(qcc)
+####
+####
+companies %>% select(company, Open, Date) %>% mutate(rownum = row_number(),flag = ifelse(lag(company) == company, 0, 1) ) -> x
+rows = x$rownum[which(x$flag == 1)]
+rows = c(1, rows)
+#
+row = 1
+row1 = rows[row]
+row2 = rows[row + 1] - 1
+sub = x[row1:row2,] %>% select(company, Open,Date)
+df = sub
+#
+for(row in 2:(length(rows)-1)){
+  row1 = rows[row]
+  row2 = rows[row + 1] - 1
+  sub = x[row1:row2,] %>% select(company, Open,Date)
+  dates = intersect(df$Date, sub$Date)
+  df %>% filter(Date %in% dates) -> df
+  sub %>% filter(Date %in% dates) -> sub
+  df = cbind(df, sub)
+  df = df[-c(ncol(df))]
+}
+df1 = df[-c(3)]
+df2 = df1[, seq(0, ncol(df1), by = 2)]
+names(df2) = NULL
+######
+pca = prcomp(df2, center=T, scale.=T)
+eigv = round(pca$sdev^2/sum(pca$sdev^2)*100, 2)
+eigv = data.frame(c(1:126),eigv)
+
+names(eigv) = c('PCs','Variance')
+
+PCA = pca$sdev^2
+names(PCA) = paste0('PC', eigv$PCs)
+qcc::pareto.chart(PCA)
+
+# Three first elements determine 79.82% of the Variance in the data.
+percent = sum(eigv$Variance[1:3])
+
+
+## Q6
+library(magrittr)
+companies$company = companies$company %>% str_replace_all(" ", "")
+colnames(companies)[8] = "Symbol"
+q6 = merge(companies, constituents)
+q6 %>% group_by(Date, Sector) %>%  summarise(mean = mean(Open, na.rm = T)) -> q66
+
+x2 <- melt(q66, c("Sector", "Date"), "mean")
+sector_data = dcast(x2, Date ~ Sector)
+sector_data = sector_data[-c(1)]
+pca = prcomp(sector_data, center=T, scale.=T)
+biplot(pca,cex=0.8)
+
+## Q7
+companies %>% filter(Symbol == "AAPL") -> apple
+pca = prcomp(apple[,2:6], center=T, scale.=T)
+
+apple <- apple %>% mutate(rownumber = row_number())
+apple = data.frame(apple, pca$x)
+apple$day = as.numeric(apple$day)
+predictions = NULL
+mse = vector()
+for(k in 8:8){
+  for(rownumber in apple$rownumber){
+    open_pred = ifelse(rownumber > k ,
+                       predict(lm(Open ~ PC1, data = apple[(rownumber - k):(rownumber- 1),]), newdata =  apple[rownumber,]),
+                       NA) 
+    predictions = append(predictions, open_pred)
+  }
+  mse[k] =  sum((predictions - apple$Open)^2, na.rm = T)
+  if(k == 8) accuracy = cor(predictions, apple$Open, use = "complete.obs")
+  predictions = NULL
+  
+  
+}
+
+minimum_value_of_mse = mse[which.min(mse)]
+# Best K with minimum MSE :
+best_k = which.min(mse)
+
+accuracy # Best accuracy : 0.999
+# As we expected the accuracy has been increased.
+
+
+# Q9
+library("EBImage")
+setwd("/Users/parnianshahkar/Downloads")
+pic = flip(readImage("hw_09/images/stock.jpg"))
+red.weigth   = .2989; green.weigth = .587; blue.weigth  = 0.114
+img = red.weigth * imageData(pic)[,,1] +
+  green.weigth * imageData(pic)[,,2] + blue.weigth  * imageData(pic)[,,3]
+image(img, col = grey(seq(0, 1, length = 256)))
+
+pca.img = prcomp(img, scale=TRUE)
+plot(summary(pca.img)$importance[3,], type="l",
+     ylab="%variance explained", xlab="nth component (decreasing order)")
+abline(h=0.99,col="red");abline(v = 32,col="red",lty=3)
+summary(pca.img)
+chosen.components = 1:110
+feature.vector = pca.img$rotation[,chosen.components]
+feature.vector[1:10,1:5] 
+compact.data = t(feature.vector) %*% t(img)
+approx.img = t(feature.vector %*% compact.data) 
+image(approx.img, col = grey(seq(0, 1, length = 256)))
+
+## Q10
+# 5 Ideas : 1- what is the correlation between stock prices of different companies?
+# 2- which company has had the highest stock price more than any other company?
+# 3- what is the date in which the stock price has rose more than ever and why?
+# 4- Build a model to predict the trend of stock for a week, given the data from beginning of the year.
+# 5- what is the best time in the year to buy stock?
+
+
+
+
+```
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+

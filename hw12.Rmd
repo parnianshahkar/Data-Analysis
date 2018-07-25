@@ -1,0 +1,211 @@
+---
+title: "HW12"
+output: html_document
+---
+
+```{r cars}
+# Q1
+# Read Data
+library(readr)
+library(highcharter)
+library(corrplot)
+library(dplyr)
+library(arules)
+library(tm)
+library(RColorBrewer)
+library(arulesViz)
+library(wordcloud)
+library(colorspace)
+library(stringr)
+
+
+# Movies
+movie = read_delim('Data Data/data12/ml-10M100K/movies.dat',delim = "::" ,col_names = c("MovieID",NA,"Title",NA,"Genres"))
+movie = movie[,c(1,3,5)]
+
+# Tags
+tag = read_delim('Data Data/data12/ml-10M100K/tags.dat',delim = "::" ,col_names = c("UserID",NA,"MovieID",NA,"Tag",NA,"Timestamp"))
+tag = tag %>% select(1,3,5,7) 
+
+# Ratings
+rating = read_delim('Data Data/data12/ml-10M100K/ratings.dat',delim = "::" ,col_names = c("UserID",NA,"MovieID",NA,"Rating",NA,"Timestamp"))
+rating = rating %>% select(1,3,5,7) 
+
+movies = merge(movie, tag, by = "MovieID")
+# A) The most popular movie is the movie with the most 4-5 Ratings.
+rating$Rating = as.numeric(rating$Rating)
+
+rating %>% 
+  filter(Rating > 4) %>% 
+  group_by(MovieID) %>% 
+  summarise(Popularity = n()) %>% 
+  arrange(desc(Popularity)) -> pop
+
+MostPopularMovie = movie$Title[movie$MovieID == pop$MovieID[1]] 
+
+# B) which movie has the most comments? 
+movies %>% 
+  group_by(Title) %>% 
+  summarise(comments = n()) %>% 
+  arrange(desc(comments)) -> comments
+MostCommentedMovie = comments$Title[1]
+
+# C) what is the worst movie ever?
+
+rating %>% 
+  filter(Rating <= 2.5) %>% 
+  group_by(MovieID) %>% 
+  summarise(disPopularity = n()) %>% 
+  arrange(desc(disPopularity)) -> dispop
+
+MostdisPopularMovie = movie$Title[movie$MovieID == dispop$MovieID[1]] 
+
+# D) Number of movies in every year: 
+
+movie$year = gsub("\\D","", movie$Title)
+movie$year = ifelse(nchar(movie$year) < 4 | movie$year > 2018, NA, movie$year)
+movie$year = ifelse(nchar(movie$year) > 4, str_sub(movie$year, start = -4, end = -1), movie$year)  
+
+movie %>% group_by(year) %>% summarise(count = n()) %>% arrange(year)-> Years   
+
+# E) which genre is the most popular in each year? 
+movie$Genres = str_replace_all(movie$Genres, "\\|", " ")
+GenreList = as.data.frame(unlist(strsplit(movie$Genres, " ")))
+colnames(GenreList) = c("Genres")
+GenreList %>%
+  group_by(Genres) %>% 
+  summarise(count = n()) %>% arrange(desc(count))-> GenresDF
+GenresDF = GenresDF[1:20,]
+###
+
+
+df = data.frame(year = numeric(),
+                Genre = character(),
+                meanRating = numeric(), stringsAsFactors = FALSE)
+
+#i = 1
+#for(year in 1925:2010){
+# movie %>% filter(year == year) -> yearmovie
+#for(Genre in GenresDF$Genres){
+# indexes = str_which(yearmovie$Genres, pattern = Genre)
+#    IDs = yearmovie[indexes,"MovieID"]
+#    rating %>% filter(MovieID %in% IDs$MovieID) -> DF
+#    meanRating =mean(DF$Rating, na.rm = T)
+#    df[i,1:3] = c(year, Genre, meanRating)
+#    i = i +1
+#  }
+#}
+
+df = read.csv("Data Data/data12/ml-10M100K/genre_data.csv")
+df %>%
+  group_by(year) %>% 
+  filter(mean_rating == max(mean_rating)) %>%
+  select(year, genre, mean_rating) -> PopularGenresEachYear
+head(PopularGenresEachYear)
+
+#Q2
+# A)
+movie$Genres = str_replace_all(movie$Genres, "\\|", " ")
+GenreList = as.data.frame(unlist(strsplit(movie$Genres, " ")))
+colnames(GenreList) = c("Genres")
+GenreList %>%
+  group_by(Genres) %>% 
+  summarise(count = n()) %>% arrange(desc(count))-> GenresDF
+GenresDF = GenresDF[1:20,]
+GenresDF = na.omit(GenresDF)
+
+GenresDF %>% hchart(type = "bar", hcaes(x = Genres, y = count), name = "Count")
+
+
+
+View(movie)
+# B) Hambastegie genre ha 
+for(genre in GenresDF$Genres){
+    movie[,genre] = ifelse((str_detect(movie$Genres,genre) ) , 1 , 0)
+}
+movie = na.omit(movie)
+movie[, 5:23] -> cor_data
+cor_data %>% cor() %>% round(2) -> cor_mat
+corrplot(cor_mat, type="upper", order="hclust", sig.level = 0.01, insig ="blank")
+
+
+# C) 
+
+MeanGenres = vector()
+GenresDF$Genres = as.character(GenresDF$Genres)
+for(i in 1:19){
+  Genre = GenresDF$Genres[i]
+  IDs = str_which(movie$Genres, Genre)
+  MovieIDs = movie$MovieID[IDs]
+  MeanGenres[i] = mean(rating$Rating[which(rating$MovieID %in% MovieIDs)])
+  
+}
+MeanScoreToGenres = data.frame(Genres = GenresDF$Genres ,MeanGenres )
+
+#D) 
+
+movie %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) -> GoldenTime
+
+GoledenMovieYear = GoldenTime$year[2]
+
+# Q3
+Titles = as.data.frame(gsub("\\d","", movie$Title) )
+colnames(Titles) = c("title")
+wstone = Titles$title %>% 
+  str_replace_all("\"","") %>% 
+  str_replace_all("[[:punct:]]","") %>% 
+  str_split(pattern = "\\s") %>% 
+  unlist() %>% 
+  str_to_lower() %>% 
+  removeWords(., stopwords('en')) %>% 
+  str_trim() %>% 
+  table() %>% 
+  as.data.frame(stringsAsFactors = F)
+colnames(wstone) = c("word","count")
+wstone = wstone %>% arrange(desc(count)) %>% 
+  filter(nchar(word)>3)
+
+wordcloud(wstone$word[1:100],wstone$count[1:100],
+          c(5,.3), random.order = FALSE, colors=brewer.pal(8, "Dark2"))
+```
+
+Q5)
+my github account = "https://github.com/parnianshahkar/Data-Analysis.git"
+
+۶. پنج انتقاد از درس و نحوه تدریس را بیان کنید.
+١-تكاليف تصحيح شده ي ما به دستمان نرسيد تا بتوانيم ايراد كار خود را متوجه شويم.
+٢- نمرات ميانترم و تكاليف بهتر بود تا قبل حذف دبليو اعلام شود كه اين اتفاق هنوز هم نيفتاده است.
+٣- بسياري از وقت كلاس صرف دوباره زدن كد هايي ميشد كه در اسلايد اماده وجود داشتند و نكته اي جز سينتكس نداشتند، بهتر بود درصد بيشتري از مطالب كلاس را مفاهيم اماري به خود اختصاص ميدادند.
+چيز بيشتري به ذهنم نميرسد :)
+
+۷. پنج پیشنهاد برای بهتر شدن درس بیان کنید.
+١- به نظرم بهتر بود كه بيشتر روي الگوريتم ها مانور داده شود، مثلا براي تكست ماينينگ، بهتر بود بيشتر راجع به الگوريتم هاي NLP صحبت شود تا سينتكس هاي اماده. 
+٢-تكاليف زودتر تصحيح شوند و ايرادات به دانشجويان منتقل شود.
+٣- نمرات زودتر اعلام شوند.
+٤- متن تمرين ها به انگليسي باشد.
+٥- روي مباحث اماري و بخش رياضي تمركز بيشتري وجود داشته باشد.
+
+۸. سه موضوع آماری جدید برای جایگزینی در سرفصل ها پیشنهاد دهید.
+١- natural language processing
+٢- روي بخش آزمون هاي فرض، الگوريتم رياضي آن ها و محل مورد استفاده ي آن ها بيشتر تاكيد و توضيح داده شود.
+٣- الگوريتم هاي سرچ 
+
+
+۹. سه داده جالب برای کار در کلاس پیشنهاد دهید.
+١- داده هاي فروش آمازون 
+٢- داده هاي مكان هاي توريستي
+٣- داده هاي پزشكي(پيش بيني بيماري) 
+
+
+۱۰. چهار نکته مهمی که در کلاس یاد گرفتید را بیان کنید.
+١- با داشتنيك داده، بسيار بازتر بينديشم و بتوانم سوالات جالب در ان زمينه مطرح كنم.
+٢- بتوانم هر داده را ويژوالايز كنم و با شهود بهتري با ان ارتباط برقرار كنم.
+٣- ميتوانم بدون ترس از داده گام به گام وارد حل مساله شوم و حتي اگر تمامي واژگان يك داده براي من غريب باشند، با وقت گذاشتن به نتايج مورد نظر ميرسم.
+٤- اينكه اگر روزي استاد شدم واقعا خود را بسنجم كه آيا در اين مقام هستم يا نه ، كشور ما بيشتر به استاداني از جنس دكتر ميرصادقي نياز دارد كه حقيقتا خود را درخور اين مقام ميدانند و به همين سبب به دنبال خوشبختي و روشني راه دانشجويان خود هستند. 
+
+
+
+

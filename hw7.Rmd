@@ -1,0 +1,304 @@
+---
+title: "HW7"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(readxl)
+library(dplyr)
+library(h2o)
+library(boot)
+library(corrplot)
+library(car)
+
+
+## Q1
+death = read.csv("Downloads/data/murder_suicide.csv")
+death %>% select(Id,ResidentStatus,
+                 Education1989Revision,
+                 MonthOfDeath,
+                 Sex,
+                 Age,
+                 InfantAgeRecode22,
+                 PlaceOfDeathAndDecedentsStatus,
+                 MaritalStatus,
+                 DayOfWeekOfDeath,
+                 InjuryAtWork,
+                 MannerOfDeath,
+                 MethodOfDisposition,
+                 Autopsy,
+                 ActivityCode,
+                 PlaceOfInjury,
+                 Icd10Code,
+                 NumberOfEntityAxisConditions,
+                 NumberOfRecordAxisConditions,
+                 Race) -> q1
+q11 = as.data.frame(lapply(q1,as.numeric))
+
+M = cor(q11)
+corrplot(M, method = "circle",tl.cex = 0.7)
+scatterplotMatrix(q11[1:500,1:10])
+scatterplotMatrix(q11[1:500,10:20])
+
+## Q2
+q11 %>% mutate(suicide = ifelse(MannerOfDeath == 2,1,0)) -> Murder_Suicide
+chisq.test(Murder_Suicide$suicide,Murder_Suicide$Sex)
+
+### Another test:
+result = matrix(nrow = 1000)
+for(i in 1:1000){
+  random = runif(nrow(Murder_Suicide), 1, nrow(Murder_Suicide))
+  samplee = Murder_Suicide[random,]
+  samplee %>% mutate(TFZ = (samplee$Sex - samplee$suicide)^2) -> ker
+  sum(ker$TFZ) -> result[i]
+}
+m = quantile(result, c(0.025, 0.975))
+m[1]
+Murder_Suicide %>% mutate(TFZ = (Murder_Suicide$Sex - Murder_Suicide$suicide)^2) -> ker
+sum(ker$TFZ) -> g
+mostaghel = 0
+if(g>m[1] & g<m[2])   mostaghel = 1
+
+###
+# Suicide is not independant from Sex factor
+kruskal.test(Murder_Suicide$suicide,Murder_Suicide$Race)
+
+# Suicide is not independant from Race factor
+kruskal.test(Murder_Suicide$suicide,Murder_Suicide$Education1989Revision)
+
+# Suicide is not independant from Education factor
+kruskal.test(Murder_Suicide$suicide,Murder_Suicide$Age)
+
+# Suicide is not independant from Age.
+Murder_Suicide %>% filter(MethodOfDisposition == 1 | MethodOfDisposition == 2) -> q2
+chisq.test(Murder_Suicide$suicide,Murder_Suicide$MethodOfDisposition)
+
+####
+
+  
+####
+## Q3
+
+
+str(Murder_Suicide)
+model = glm(factor(suicide)~Id+ 
+              factor(ResidentStatus) + 
+              factor(Education1989Revision)+
+              MonthOfDeath+
+              factor(Sex)+
+              Age+
+              factor(InfantAgeRecode22)+
+              factor(PlaceOfDeathAndDecedentsStatus)+
+              factor(MaritalStatus)+
+              DayOfWeekOfDeath+
+              factor(InjuryAtWork)+
+              factor(MethodOfDisposition)+
+              factor(Autopsy)+
+              ActivityCode+
+              factor(PlaceOfInjury)+
+              factor(Icd10Code)+
+              NumberOfEntityAxisConditions+
+              NumberOfRecordAxisConditions+
+              factor(Race),
+            data = Murder_Suicide, family = binomial(link = 'logit'))
+summary(model)
+plot(model)
+
+# Naghs yabi...............................
+# Now we delete some of our parameters with high p-values and keep the parameters which have significantly small p_values, which means they reject the hypothesis that their coefficient is equal to zero,(so they are independant and not effective on approximated parameter).
+
+q1 %>% mutate(suicide = ifelse(MannerOfDeath == 2,1,0)) -> Murder_Suicide1
+Murder_Suicide1$ResidentStatus= as.factor(Murder_Suicide1$ResidentStatus)
+Murder_Suicide1$Education1989Revision= as.factor(Murder_Suicide1$Education1989Revision)
+Murder_Suicide1$Sex= as.factor(Murder_Suicide1$Sex)
+Murder_Suicide1$InfantAgeRecode22= as.factor(Murder_Suicide1$InfantAgeRecode22)
+Murder_Suicide1$PlaceOfDeathAndDecedentsStatus= as.factor(Murder_Suicide1$PlaceOfDeathAndDecedentsStatus)
+Murder_Suicide1$MaritalStatus= as.factor(Murder_Suicide1$MaritalStatus)
+Murder_Suicide1$InjuryAtWork= as.factor(Murder_Suicide1$InjuryAtWork)
+Murder_Suicide1$MannerOfDeath= as.factor(Murder_Suicide1$MannerOfDeath)
+Murder_Suicide1$MethodOfDisposition= as.factor(Murder_Suicide1$MethodOfDisposition)
+Murder_Suicide1$Autopsy= as.factor(Murder_Suicide1$Autopsy)
+Murder_Suicide1$ActivityCode= as.factor(Murder_Suicide1$ActivityCode)
+Murder_Suicide1$PlaceOfInjury= as.factor(Murder_Suicide1$PlaceOfInjury)
+Murder_Suicide1$Icd10Code= as.factor(Murder_Suicide1$Icd10Code)
+Murder_Suicide1$Race= as.factor(Murder_Suicide1$Race)
+Murder_Suicide1$suicide= as.integer(Murder_Suicide1$suicide)
+
+str(Murder_Suicide1)
+
+library(onehot)
+#Onehot code
+temp = onehot(Murder_Suicide1 , stringsAsFactors = TRUE, max_levels = 10000)
+Murder_Data = as.data.frame(predict(temp,Murder_Suicide1))
+colnames(Murder_Data)
+##
+colnames(Murder_Data)[c(94,95,90,76,77,73,56,52)] = c("PlaceOfInjury9",
+                                                   "PlaceOfInjury99",
+                                                   "PlaceOfInjury5",
+                                                   "Autopsy2",
+                                                   "Autopsy3",
+                                                   "MethodOfDisposition6",
+                                                   "PlaceOfDeathAndDecedentsStatus9",
+                                                   "PlaceOfDeathAndDecedentsStatus4")
+
+
+##...............
+new_model = glm(data = Murder_Data, factor(suicide)~ PlaceOfInjury9+                
+                PlaceOfInjury99+
+                PlaceOfInjury5 +
+                Autopsy2 +                         
+                Autopsy3 +
+                MethodOfDisposition6 +             
+                PlaceOfDeathAndDecedentsStatus9 +
+                PlaceOfDeathAndDecedentsStatus4,
+                ,family = "binomial")
+summary(new_model)
+#...............
+## Q4
+par(mfrow=c(2,2))
+plot(new_model, which=1:4)
+# We can not check the model with these plots because:
+#The Residuals vs Fitted plot can help you see, for example, if there are curvilinear trends that you missed. But the fit of a logistic regression is curvilinear by nature, so you can have odd looking trends in the residuals with nothing amiss.
+#The Normal Q-Q plot helps you detect if your residuals are normally distributed. But the deviance residuals don't have to be normally distributed for the model to be valid, so the normality / non-normality of the residuals doesn't necessarily tell you anything.
+#The Scale-Location plot can help you identify heteroscedasticity. But logistic regression models are pretty much heteroscedastic by nature.
+#The Residuals vs Leverage can help you identify possible outliers. But outliers in logistic regression don't necessarily manifest in the same way as in linear regression, so this plot may or may not be helpful in identifying them.
+
+## Q5
+### Generating the model and applying it on the test data
+sample = sample(nrow(Murder_Data), (0.8)*nrow(Murder_Data), replace = FALSE)
+train = Murder_Data[sample,]
+test = Murder_Data[-sample,]
+final_model = glm(data = train, factor(suicide)~ PlaceOfInjury9+                
+                  PlaceOfInjury99+
+                  PlaceOfInjury5 +
+                  Autopsy2 +                         
+                  Autopsy3 +
+                  MethodOfDisposition6 +             
+                  PlaceOfDeathAndDecedentsStatus9 +
+                  PlaceOfDeathAndDecedentsStatus4,
+                ,family = "binomial")
+test %>% mutate(predict_prob = predict.glm(final_model,test, type = "response") ) %>% mutate(predict = ifelse(predict_prob>0.5,1,0)) -> test
+
+### Finding the wanted values:
+P = sum(test$suicide) # number of suicides in the test data
+P
+N = sum(test$suicide == 0) # number of Murders in the test data
+N
+test %>% filter(suicide == 1) -> temp
+TP =sum(temp$predict)
+TP
+test %>% filter(suicide == 0) -> temp1
+TN = sum(temp1$predict == 0)
+TN
+FP = sum(temp1$predict == 1)
+FP
+FN =sum(temp$predict == 0)
+FN  
+Accuracy = (TP + TN)/(P+N)  
+Accuracy
+FPR = 1-TN/N  
+FPR  
+TPR = TP/P
+TPR  
+
+library(ggthemr) 
+library(ROCR)
+#cm_info = ConfusionMatrixInfo( data = test, predict = "predict_prob", 
+#                               actual = "suicide", cutoff = .5 )
+#cm_info$plot
+
+#Q6
+max = 0
+bestP = 0
+i = 1
+mat = matrix(nrow = 103, ncol = 2) # first row: cutoff P, second row: accuracy
+for(P in seq(0,1,by = 0.01)){
+  test %>% filter(suicide == 1) %>% filter(predict_prob >= P) -> ap
+  test %>% filter(suicide == 0) %>% filter(predict_prob < P) -> af
+  
+  M = (nrow(ap)+nrow(af))/nrow(test)
+  if(M>max) {max = M
+  bestP = P}
+  mat[i, 1] = P
+  mat[i, 2] = M 
+  i = i+1
+}
+colnames(mat) = c("P","Acc")
+mat = as.data.frame(mat)
+library(ggplot2)
+ggplot(data = mat, aes(x = P , y = Acc)) + geom_point()
+bestP # so we get the best accuracy by choosing cutoff P = 0.51
+
+# Q7
+# instead of "predict", there should be "predict_prob" but because of my systems error , I had to write "predict".
+cost_fp = 100;cost_fn = 200
+#roc_info = ROCInfo( data = test, predict = "predict", 
+#                    actual = "suicide", cost.fp = cost_fp, cost.fn = cost_fn)
+
+#grid.draw(roc_info$plot)
+
+# Q8
+library(h2o)
+h2o.init()
+happly = as.h2o(Murder_Data)
+chglm = h2o.glm(y = "suicide", x= c("PlaceOfInjury9",
+                                      "PlaceOfInjury99",
+                                      "PlaceOfInjury5",
+                                      "Autopsy2" ,                         
+                                      "Autopsy3" ,
+                                      "MethodOfDisposition6" ,           
+                                      "PlaceOfDeathAndDecedentsStatus9" ,
+                                      "PlaceOfDeathAndDecedentsStatus4"),
+                                      training_frame = happly , family="binomial",nfolds = 5)
+teest = as.h2o(test)
+predict_prob = h2o.predict(chglm,teest) 
+test %>% mutate(predict_prob = predict_prob ) %>% mutate(predict = ifelse(predict_prob>0.5,1,0)) -> test
+
+## what is the best accuracy of this model?
+max = 0
+bestP = 0
+i = 1
+mat = matrix(nrow = 103, ncol = 2) # first row: cutoff P, second row: accuracy
+for(P in seq(0,1,by = 0.01)){
+  test %>% filter(suicide == 1) %>% filter(predict_prob >= P) -> ap
+  test %>% filter(suicide == 0) %>% filter(predict_prob < P) -> af
+  
+  M = (nrow(ap)+nrow(af))/nrow(test)
+  if(M>max) {max = M
+  bestP = P}
+  mat[i, 1] = P
+  mat[i, 2] = M 
+  i = i+1
+}
+bestP
+max
+# So the accuracy has gone up by using this new model.
+# Q9
+# No we can not. because the type one error is not significantly small.
+
+
+
+
+
+
+
+  
+
+```
+
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+

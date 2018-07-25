@@ -1,0 +1,181 @@
+---
+title: "hw11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+#Q1
+library(mgcv)
+library(plotly)
+library(readr)
+library(highcharter)
+library(stringr)
+library(dplyr)
+library(ggmap)
+library(ggplot2)
+library(sp)
+library(maptools)
+library(rgdal)
+library(RColorBrewer )
+library(raster)
+library(ggthemr)
+library(maptools)
+library(maps)
+historical_web_data = readRDS("Data/historical_web_data_26112015.rds")
+
+p<- plot_ly(historical_web_data, x = ~Latitude, y = ~Longitude, z = ~Depth, color = ~Magnitude, size = ~Magnitude,
+             type = "scatter3d", mode = "markers",marker = list(symbol = 'circle', sizemode = 'diameter'),
+             sizes = c(1, 15),
+             text = ~paste('Latitude:', Latitude, '<br> Longitude:', Longitude, '<br>Depth:', Depth,
+                                            '<br>Magnitude:', Magnitude)) %>%
+  layout(title = 'Magnitude v. Latitude and Longitude and Depth',
+         scene = list(xaxis = list(title = 'Latitude',
+                                   gridcolor = 'rgb(255, 255, 255)',
+                                   range = c(23.976, 40.944),
+                                   zerolinewidth = 1,
+                                   ticklen = 5,
+                                   gridwidth = 2),
+                      yaxis = list(title = 'Longitude',
+                                   gridcolor = 'rgb(255, 255, 255)',
+                                   range = c(43.531, 70.660),
+                                   zerolinewidth = 1,
+                                   ticklen = 5,
+                                   gridwith = 2),
+                      zaxis = list(title = 'Depth',
+                                   gridcolor = 'rgb(255, 255, 255)',
+                                   zerolinewidth = 1,
+                                   range = c(0, 161),
+                                   ticklen = 5,
+                                   gridwith = 2)),
+         paper_bgcolor = 'rgb(243, 243, 243)',
+         plot_bgcolor = 'rgb(243, 243, 243)')
+
+p
+
+# Q2
+Disaster = read_delim("Data/disaster.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
+head(Disaster)
+Disaster %>% 
+  filter(FLAG_TSUNAMI == "Tsu") %>% 
+  rename(lat = LATITUDE,lon = LONGITUDE, z = DEATHS,name = COUNTRY,sequence = YEAR) %>% 
+  dplyr::select(lat, lon, z, name, sequence) -> tsunami
+
+hcmap() %>% 
+  hc_add_series(data = tsunami,
+                hcaes(x = lat, y = lon, size = z, color = z), 
+                type = "mapbubble",
+                minSize = 0, maxSize = 15)  %>% 
+  hc_plotOptions(series = list(showInLegend = FALSE))
+
+# Q3
+iran_earthquake = readRDS("Data/iran_earthquake.rds")
+
+irmap = get_map("Iran",zoom = 5, color="bw")
+
+ggmap(irmap, extent = "panel", maprange=FALSE) +
+   geom_density2d(data = iran_earthquake, aes(x = Long, y = Lat)) +
+   stat_density2d(data = iran_earthquake, aes(x = Long, y = Lat, fill = ..level.., alpha = ..level..),
+                  size = 0.01, bins = 16, geom = 'polygon') +
+   scale_fill_gradient(low = "green", high = "red") +
+   scale_alpha(range = c(0.00, 0.25), guide = FALSE) +
+   theme(legend.position = "none", axis.title = element_blank(), text = element_text(size = 12))
+
+
+# Q5
+Disaster %>% 
+  group_by(COUNTRY) %>% 
+  summarise(mean = round(mean(TOTAL_DEATHS, na.rm = T)), total = sum(TOTAL_DEATHS, na.rm = T)) -> q5
+str1 = str_sub(q5$COUNTRY, 1,1)
+str2 = str_to_lower(str_sub(q5$COUNTRY, 2,-1), locale = "en")
+q5$COUNTRY = str_c(str1, str2)
+
+mapdata = get_data_from_map(download_map_data(url = "custom/world.js"))
+glimpse(mapdata)
+
+hcmap(url = "custom/world.js", data = q5, value = "mean",
+      joinBy = c("name", "COUNTRY"), name = "mean death per earthquake",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1)
+
+hcmap(url = "custom/world.js", data = q5, value = "total",
+      joinBy = c("name", "COUNTRY"), name = "total death due to earthquake",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1)
+
+###
+
+# Q6
+ggplot(data = Disaster, aes(x = FOCAL_DEPTH, y = TOTAL_DEATHS)) + geom_point()
+ggplot(data = Disaster, aes(x = LATITUDE, y = TOTAL_DEATHS)) + geom_point()
+ggplot(data = Disaster, aes(x = LONGITUDE, y = TOTAL_DEATHS)) + geom_point()
+ggplot(data = Disaster, aes(x = INTENSITY, y = TOTAL_DEATHS)) + geom_point()
+
+Disast = Disaster[rowSums(is.na(Disaster[ , c("FOCAL_DEPTH", "LATITUDE", "LONGITUDE", "INTENSITY")])) == 0, ]
+model1 = glm(TOTAL_DEATHS~ poly(FOCAL_DEPTH,5)+ poly(LATITUDE,5)+ poly(LONGITUDE,5)+ poly(INTENSITY,5), data = Disast )
+summary(model1)
+# Another model
+library(gnm)
+model2 = gnm(TOTAL_DEATHS~ FOCAL_DEPTH+ LATITUDE+ LONGITUDE+ INTENSITY, data = Disast)
+summary(model2)
+
+# Q7
+wquake = read.csv("Data/worldwide.csv")
+print('number of predicted eqrchquakes / all earthquakes')
+sum(!is.na(wquake$rms)) / length(wquake$rms)
+print('mean rms is')
+mean(wquake$rms, na.rm = TRUE)
+print('min mag is')
+min(wquake$mag, na.rm=TRUE)
+print('max mag is')
+max(wquake$mag, na.rm=TRUE)
+
+# Q8
+
+cor.test(wquake$mag,wquake$depth)
+# Due to small p-value the null hypothesis that magnitude and depth of earthquakes are independant from eachother is rejected so the intensity of an earthquake is dependant to its depth.
+
+# Q9
+df = str_split_fixed(wquake$place, ",", 2)
+df1 = str_split_fixed(wquake$time, "-", 2) 
+
+wquake %>% mutate(country = df[,2], year = df1[,1]) -> wquake
+
+wquake %>% 
+  group_by(country, year) %>% 
+  summarise(count = n()) -> q9
+
+# Harp theory admits the fact that the total number of earthquakes has increased due to haarp project.
+q9 %>% filter(year != 2018) %>% group_by(year) %>% summarise(counter = sum(count)) -> test
+ggplot(data = test, aes(x = year, y = counter)) + geom_point() + geom_line()
+# 
+
+# Q10
+# Top 6 Provinces in Iran with most earthquakes.
+historical_web_data %>% group_by(Province) %>% summarise(count = n()) %>% arrange(desc(count))-> result
+head(result)
+
+# Top 6 countries in the world with most earthquakes.
+Disaster %>% group_by(COUNTRY) %>% summarise(count = n()) %>% arrange(desc(count))-> result
+head(result)
+
+# heatmap of totaldeath of each country/population.
+library(wpp2017)
+data(pop)
+
+q10 = merge(pop, q5, by.x = "name", by.y = "COUNTRY")
+q10$population = q10[,16]
+q10 %>% mutate(deathperpop = total/population) -> q
+hcmap(url = "custom/world.js", data = q, value = "deathperpop",
+      joinBy = c("name", "name"), name = "total death due to earthquake",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1)
+q %>% arrange(desc(deathperpop)) -> q
+head(q$name)
+
+# these countries have the most (total)death per population rate.
+
+```

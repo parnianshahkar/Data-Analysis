@@ -1,0 +1,381 @@
+---
+title: "HW10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdow
+```{r cars, warning=FALSE}
+library(dplyr)
+library(highcharter)
+library(ggplot2)
+library(stringr)
+library(fitdistrplus, quietly = TRUE)
+library(reshape2)
+
+WDICountrySeries = read.csv("WDI_csv/WDICountry-Series.csv")
+WDICountry = read.csv("WDI_csv/WDICountry.csv")
+WDIData = read.csv("WDI_csv/WDIData.csv")
+WDIFootNote = read.csv("WDI_csv/WDIFootNote.csv")
+WDISeriesTime = read.csv("WDI_csv/WDISeries-Time.csv")
+WDISeries = read.csv("WDI_csv/WDISeries.csv")
+
+# Q1
+
+WDIData$SumIndicator = rowSums(WDIData[, 5:62], na.rm = T)
+WDIData$na_count <- apply(WDIData, 1, function(x) sum(is.na(x)))
+WDIData$MeanIndicator = WDIData$SumIndicator/(59 - WDIData$na_count)
+
+
+WDIData %>% 
+  filter(Indicator.Code == "NY.GDP.PCAP.KD") %>% 
+  arrange(MeanIndicator) -> GDPPP
+MostPoorCountries = GDPPP$X...Country.Name[1:10]
+# Graph
+daily_income = "SI.SPR.PCAP"
+
+WDIData %>% 
+  filter(Indicator.Code == daily_income) %>% 
+  filter(X...Country.Name %in% MostPoorCountries) -> q2
+
+q2 %>% hchart(type = "bar",hcaes(x = X...Country.Name, y = MeanIndicator, col = MeanIndicator))
+
+# what percent of people are below poverty line?
+
+below_poverty_line = "SI.POV.NAHC"
+WDIData %>% 
+  filter(Indicator.Code == below_poverty_line) %>% 
+  filter(X...Country.Name %in% MostPoorCountries) -> q22
+q22 = q22[,c(1,66)]
+# Life Expectancy
+Life_expectancy= "SP.DYN.LE00.IN"
+
+WDIData %>% 
+  filter(Indicator.Code == Life_expectancy) %>% 
+  filter(X...Country.Name %in% MostPoorCountries)  -> q222
+q222 = q222[,c(1,66)]
+
+# Q2
+WDIData %>% 
+  filter(Indicator.Code == Life_expectancy) -> Life_expect
+Life_Expectancy= Life_expect[,-c(1,2,3,4,62,63,64,65,66)]
+boxplot(Life_Expectancy, use.cols = TRUE) 
+
+# Rwanda Tragedy
+WDIData %>% 
+  filter(Indicator.Code == Life_expectancy) %>% 
+  filter(X...Country.Name == "Rwanda") -> RwandaTragedy
+#
+my.data1 = melt(RwandaTragedy[5:61],measure.vars=colnames(RwandaTragedy[5:61]))
+my.data <- melt(Life_Expectancy, measure.vars=colnames(Life_Expectancy))
+
+colnames(my.data1) = c("variable1", "value1")
+ggplot(data = my.data,aes(x=variable,y=value)) + 
+  geom_boxplot() +
+  geom_point(data = my.data1, aes(x = variable1, y = value1, color = "pink"))
+
+# From the graph above we can figure out that between 1984 and 1994 there is a sharp decrease in life expectancy which is a sign of the genocide that happened in 1994 in Rwanda.In this disaster 500000-1000000 people have died.
+
+# Q3
+# We assume our base data is for the 2011.
+Health_code = "SH.XPD.CHEX.PP.CD"
+WDIData %>% filter(Indicator.Code == Health_code) -> HealthData
+HealthData = HealthData[,c(1,56)]
+LifeData = Life_expect[,c(1,56)]
+
+q4 <- merge(HealthData, LifeData, by = "X...Country.Name")
+colnames(q4) = c("country", "health", "lifeEx")
+
+q4[is.na(q4)] <- 0
+ggplot(data = q4, aes(x = country, y = health, color = lifeEx, group =1)) + geom_point()
+
+ggplot(data = q4, aes(x = country)) +
+  geom_line(aes(y = health/100, colour = "pink", group = 1)) +
+  geom_line(aes(y = lifeEx, colour = "blue", group = 1))
+
+# We can figure out that generally countries with high health expenses have higher life expectancies.
+
+
+# Q4
+ppp = 'NY.GDP.MKTP.PP.KD'
+WDIData %>% 
+  filter(X...Country.Name == "Iran, Islamic Rep.") %>% 
+  filter(Indicator.Code == ppp) -> IranPPP
+  ir = melt(IranPPP[5:61], measure.vars = colnames(IranPPP[5:61]))
+ir$variable = str_sub(ir$variable, start = 2)
+ir %>% hchart("column", hcaes(x = variable, y = value))
+
+# Q5 & Q6
+
+# Most important economical indicators
+
+economic_indicators =  WDISeries[30:52,1]
+
+q6 = data.frame(X...Country.Name = LifeData$X...Country.Name)
+
+for(indicator in economic_indicators){
+  WDIData %>% 
+    filter(Indicator.Code == indicator) -> subdata
+  q6 = merge(q6, subdata[,c(1, 66)], by = "X...Country.Name")
+  
+  a = melt(subdata[5:61], measure.vars = colnames(subdata[5:61]), na.rm = T)
+  a$variable = str_sub(a$variable, start = 2)
+  a %>% 
+    group_by(variable) %>% 
+    summarise(meanCountries = mean(value)) -> MeanCountries
+  colnames(MeanCountries) = c("year", "meanOtherCountries")
+  
+  subdata %>% 
+    filter(X...Country.Name == "Iran, Islamic Rep.") -> IRN
+  b = melt(IRN[5:61], measure.vars = colnames(IRN[5:61]), na.rm = T)
+  b$variable = str_sub(b$variable, start = 2)
+  colnames(b) = c("year", "IRAN")
+  
+  t = merge(MeanCountries, b, by = "year")
+  
+
+    ggplot(data = t, aes(x = year)) + 
+    geom_line(aes(y = meanOtherCountries, color = "purple", group = 1)) +
+    geom_line(aes(y = IRAN, color = "gray", group = 1)) + 
+    xlab('year')+
+    ylab('Iran(blue) vs. OtherCountries(pink)')+
+    ggtitle(indicator) 
+}                        
+# Here we can not use Kmeans because we have so much "NaN" in the data that makes the prediction nonprecise
+# But if we use mean of each column instead of the NaN values, we will have:
+listCountryNames = q6$X...Country.Name
+q6 = q6[2:23]
+q9 = q6
+colnames(q6) = c(1:22)
+for(i in 1:ncol(q6)){
+  q6[is.na(q6[,i]), i] <- mean(q6[,i], na.rm = TRUE)
+}
+KMEANS = kmeans(q6, centers = 3)
+KMEANS
+df = data.frame(listCountryNames,KMEANS$cluster)
+df %>% filter(listCountryNames == "Iran, Islamic Rep.") 
+
+# Q7
+pca = prcomp(q6, scale. = T, center = T)
+str(pca)
+comp = data.frame(pca$x[, 1:2])
+plot(comp, col = KMEANS$clust, pch = 16)
+
+
+# Q8
+WDIData %>% filter(X...Country.Name == "Iran, Islamic Rep.") -> IRANDATA
+
+q7 = data.frame(variable = 1960:2016)
+
+for(indicator in economic_indicators){
+  IRANDATA %>% 
+    filter(Indicator.Code == indicator) -> subdata
+  u = melt(subdata[5:61], measure.vars = colnames(subdata[5:61]))
+  u$variable = str_sub(u$variable, start = 2)
+  q7 = merge(q7, u, by = "variable")
+}   
+
+colnames(q7) = c(1:23)
+
+# The seventh column is a vector for the sixth indicator "GDP Growth(%)", so based on other columns we need to predict the GDP growth in the next year.
+
+for(i in 1:ncol(q7)){
+  q7[is.na(q7[,i]), i] <- mean(q7[,i], na.rm = TRUE)
+}
+q77 = q7[, -c(3)]
+q77 = q7[, colSums(is.na(q7)) != nrow(q7)]
+pca = prcomp(q77)
+# So based on pca we can predict the GDP Growth in the next year by having all other indicators
+
+# if we did not have indicators:
+gdp_growth_code = "NY.GDP.MKTP.KD.ZG"
+IRANDATA %>% filter(Indicator.Code == gdp_growth_code) -> a
+d = melt(a[5:61], measure.vars = colnames(a[5:61]))
+ggplot(data = d, aes(x = variable, y = value)) + geom_point()
+
+# Since the data does not follow any specific distribution we can not define a model to predict its behaviour.
+                        
+# Q9
+############# Health 
+Health_indicators = WDISeries[1100:1122,1]
+                        
+
+q6 = data.frame(X...Country.Name = LifeData$X...Country.Name)
+
+for(indicator in Health_indicators){
+  WDIData %>% 
+    filter(Indicator.Code == indicator) -> subdata
+  q6 = merge(q6, subdata[,c(1, 66)], by = "X...Country.Name")
+  
+  a = melt(subdata[5:61], measure.vars = colnames(subdata[5:61]), na.rm = T)
+  a$variable = str_sub(a$variable, start = 2)
+  a %>% 
+    group_by(variable) %>% 
+    summarise(meanCountries = mean(value)) -> MeanCountries
+  colnames(MeanCountries) = c("year", "meanOtherCountries")
+  
+  subdata %>% 
+    filter(X...Country.Name == "Iran, Islamic Rep.") -> IRN
+  b = melt(IRN[5:61], measure.vars = colnames(IRN[5:61]), na.rm = T)
+  b$variable = str_sub(b$variable, start = 2)
+  colnames(b) = c("year", "IRAN")
+  
+  t = merge(MeanCountries, b, by = "year")
+  
+  ggplot(data = t, aes(x = year)) + 
+    geom_line(aes(y = meanOtherCountries, color = "purple", group = 1)) +
+    geom_line(aes(y = IRAN, color = "gray", group = 1)) + 
+    xlab('year')+
+    ylab('Iran(blue) vs. OtherCountries(pink)')+
+    ggtitle(indicator) 
+}                        
+# Here we can not use Kmeans because we have so much "NaN" in the data that makes the prediction nonprecise
+# But if we use mean of each column instead of the NaN values, we will have:
+listCountryNames = q6$X...Country.Name
+q6 = q6[2:23]
+q9 = cbind(q9, q6)
+
+colnames(q6) = c(1:22)
+for(i in 1:ncol(q6)){
+  q6[is.na(q6[,i]), i] <- mean(q6[,i], na.rm = TRUE)
+}
+KMEANS = kmeans(q6, centers = 3)
+KMEANS
+
+# Q7
+pca = prcomp(q6, scale. = T, center = T)
+str(pca)
+comp = data.frame(pca$x[, 1:2])
+plot(comp, col = KMEANS$clust, pch = 16)
+
+
+##### 
+# Education
+
+Education_indicators = WDISeries[930:952,1]
+
+
+q6 = data.frame(X...Country.Name = LifeData$X...Country.Name)
+
+for(indicator in Education_indicators){
+  WDIData %>% 
+    filter(Indicator.Code == indicator) -> subdata
+  q6 = merge(q6, subdata[,c(1, 66)], by = "X...Country.Name")
+  
+  a = melt(subdata[5:61], measure.vars = colnames(subdata[5:61]), na.rm = T)
+  a$variable = str_sub(a$variable, start = 2)
+  a %>% 
+    group_by(variable) %>% 
+    summarise(meanCountries = mean(value)) -> MeanCountries
+  colnames(MeanCountries) = c("year", "meanOtherCountries")
+  
+  subdata %>% 
+    filter(X...Country.Name == "Iran, Islamic Rep.") -> IRN
+  b = melt(IRN[5:61], measure.vars = colnames(IRN[5:61]), na.rm = T)
+  b$variable = str_sub(b$variable, start = 2)
+  colnames(b) = c("year", "IRAN")
+  
+  t = merge(MeanCountries, b, by = "year")
+  
+  ggplot(data = t, aes(x = year)) + 
+    geom_line(aes(y = meanOtherCountries, color = "purple", group = 1)) +
+    geom_line(aes(y = IRAN, color = "gray", group = 1)) + 
+    xlab('year')+
+    ylab('Iran(blue) vs. OtherCountries(pink)')+
+    ggtitle(indicator) 
+}                        
+# Here we can not use Kmeans because we have so much "NaN" in the data that makes the prediction nonprecise
+# But if we use mean of each column instead of the NaN values, we will have:
+listCountryNames = q6$X...Country.Name
+q6 = q6[2:23]
+q9 = cbind(q9, q6)
+
+colnames(q6) = c(1:22)
+for(i in 1:ncol(q6)){
+  q6[is.na(q6[,i]), i] <- mean(q6[,i], na.rm = TRUE)
+}
+
+KMEANS = kmeans(q6, centers = 3)
+KMEANS
+
+# Q7
+pca = prcomp(q6, scale. = T, center = T)
+str(pca)
+comp = data.frame(pca$x[, 1:2])
+plot(comp, col = KMEANS$clust, pch = 16)
+
+
+View(q9)
+
+
+# Q10
+
+for(i in 1:ncol(q9)){
+  q9[is.na(q9[,i]), i] <- mean(q9[,i], na.rm = TRUE)
+}
+rownames(q9) = listCountryNames
+
+dist = stats::dist(q9,method = "euclidean")                        
+clus = hclust(dist,method = "complete")                        
+plot(clus,hang = -1)
+rect.hclust(clus, 3)
+hcut= cutree(clus,k=3)
+hcut
+# Iran is in the cluster 1
+
+# Q11
+#1) does the health quality affect life expectancy?
+#2) does the educational system affects on GDP?
+#3) Iran's life expectancy in years?
+
+Health_code = "SH.XPD.CHEX.PP.CD"
+Life_expectancy_code = "SP.DYN.LE00.IN"
+gdp_code = "NY.GDP.PCAP.PP.KD"
+education_code = "SE.SEC.CUAT.UP.ZS"
+
+WDIData %>% 
+  filter(Indicator.Code == Health_code) -> health
+health = health[,c(1,66)]
+colnames(health) = c("country", "health")
+  
+
+WDIData %>% 
+  filter(Indicator.Code == Life_expectancy_code) -> Life_expectancy
+Life_expectancy = Life_expectancy[,c(1,66)]
+colnames(Life_expectancy) = c("country", "Life_expectancy")
+
+
+WDIData %>% 
+  filter(Indicator.Code == gdp_code) -> gdp
+gdp = gdp[,c(1,66)]
+colnames(gdp) = c("country", "gdp")
+
+
+WDIData %>% 
+  filter(Indicator.Code == education_code) -> education
+education = education[,c(1,66)]
+colnames(education) = c("country", "education")
+
+end = merge(health, Life_expectancy, by = "country")
+end1 = merge(end, gdp, by = "country")
+end2 = merge(end1, education, by = "country")
+
+                        
+#1) 
+cor.test(end2$health, end2$Life_expectancy)
+# Do to small pvalue we can claim that health and Life_expectancy are not independant from each other.
+#2)
+cor.test(end2$education, end2$gdp)
+# Do to small pvalue we can claim that gdp and education are not independant from each other.
+#3)
+IRANDATA %>% filter(Indicator.Code == Life_expectancy_code) -> b1
+b2 = melt(b1[5:61],measure.vars = colnames(b1[5:61]))
+ggplot(data = b2, aes(x = variable, y = value, group = 1)) + geom_line() + geom_point()
+
+# We can see there is a decrease in life expectancy during Iran's war with iraq(1974-1982)
+
+
+```
